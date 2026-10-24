@@ -96,7 +96,19 @@ label{display:block;font-size:12px;font-weight:800;color:#a9bbd4;letter-spacing:
 <script>
 /* ===== NETLIB: dùng chung cho máy quản trò và máy người chơi ===== */
 const KR_PEER_SRC=["https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js","https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"];
-const KR_PEER_OPTS={debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"},{urls:"stun:stun.cloudflare.com:3478"}]}};
+const KR_TURN={app:"pemode",key:"3c3a01e53c6230ba3418cc436f58884e4d3e"};
+const KR_STUN=[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"},{urls:"stun:stun.cloudflare.com:3478"}];
+const KR_PEER_OPTS={debug:0,config:{iceServers:KR_STUN.slice(),iceCandidatePoolSize:4}};
+async function krLoadIce(){
+ if(!KR_TURN.app||!KR_TURN.key)return false;
+ try{
+  const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),6000);
+  const res=await fetch(`https://${KR_TURN.app}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(KR_TURN.key)}`,{signal:ctl.signal});clearTimeout(tm);
+  const list=await res.json();
+  if(Array.isArray(list)&&list.length){KR_PEER_OPTS.config.iceServers=[...KR_STUN,...list];return true}
+ }catch(e){}
+ return false;
+}
 const KR_ALPHA="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const krGenCode=()=>Array.from({length:6},()=>KR_ALPHA[Math.floor(Math.random()*KR_ALPHA.length)]).join("");
 const krPeerId=c=>"krace-"+String(c).toLowerCase();
@@ -122,6 +134,7 @@ async function connect(code){
  S.connecting=true;S.code=code;$("joinErr").textContent="";setConn("connecting");$("joinBtn").disabled=true;
  cleanupPeer();
  try{await krLoadPeer()}catch(e){$("joinBtn").disabled=false;joinFail("Không tải được thư viện kết nối. Kiểm tra mạng rồi thử lại.");return}
+ setConn("connecting","Đang chuẩn bị đường truyền…");await krLoadIce();setConn("connecting");
  $("joinBtn").disabled=false;
  let peer;
  try{peer=new window.Peer(undefined,KR_PEER_OPTS)}catch(e){joinFail("Trình duyệt không hỗ trợ kết nối.");return}
@@ -129,7 +142,7 @@ async function connect(code){
  peer.on("open",()=>{
   if(S.peer!==peer)return;
   const conn=peer.connect(krPeerId(code),{reliable:true,serialization:"json"});S.conn=conn;
-  const to=setTimeout(()=>{if(S.conn===conn&&!conn.open)joinFail(`Không nối được tới phòng ${code}. Kiểm tra mã phòng hoặc nhờ quản trò mở phòng.`)},14000);
+  const to=setTimeout(()=>{if(S.conn===conn&&!conn.open)joinFail(`Không nối được tới phòng ${code}. Kiểm tra mã phòng, nhờ quản trò mở phòng, hoặc thử đổi sang Wi-Fi/4G khác rồi bấm Vào phòng lại.`)},25000);
   conn.on("open",()=>{clearTimeout(to);S.connecting=false;S.open=true;try{localStorage.setItem("kr_code",code)}catch(e){}
    send({t:"hi",cid:S.cid});setConn("ok");stopPing();S.ping=setInterval(()=>send({t:"ping"}),4000)});
   conn.on("data",onMsg);
