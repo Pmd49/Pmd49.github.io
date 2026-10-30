@@ -51,6 +51,15 @@ label{display:block;font-size:12px;font-weight:800;color:#a9bbd4;letter-spacing:
 .claim{position:relative;width:min(70vw,300px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 28%,#ffe9a8,#ffc43d 55%,#d98a00);color:#2a1c00;font-size:clamp(22px,7vw,30px);font-weight:900;line-height:1.15;box-shadow:0 14px 40px #ffb30055,inset 0 -10px 24px #0004;padding:10px;animation:pulse 0.9s ease-in-out infinite}
 .claim small{display:block;font-size:.55em;font-weight:800;opacity:.8;margin-top:4px}
 .claim:active{transform:scale(.96)}
+.dicebtn{background:radial-gradient(circle at 35% 28%,#bfe0ff,#65a9ff 55%,#2f6fd6);color:#061428;box-shadow:0 14px 40px #4e9cff55,inset 0 -10px 24px #0004;animation:pulseb .9s ease-in-out infinite}
+.dicebtn .ic{display:block;font-size:.95em;line-height:1}
+.dicebtn:disabled{animation:none;opacity:.8;background:radial-gradient(circle at 35% 28%,#d3dbe8,#98a8c0 60%,#6b7c96);color:#0b1220}
+@keyframes pulseb{0%,100%{box-shadow:0 14px 40px #4e9cff55,0 0 0 0 #65a9ff88}50%{box-shadow:0 14px 40px #4e9cff55,0 0 0 18px #65a9ff00}}
+.face{font-size:120px;line-height:1;filter:drop-shadow(0 8px 10px #000a)}
+.face.roll{animation:droll .7s ease-in-out infinite}
+.face.land{animation:dland .5s ease-out}
+@keyframes droll{0%{transform:rotate(0) scale(1)}25%{transform:rotate(90deg) scale(1.2)}50%{transform:rotate(180deg) scale(.9)}75%{transform:rotate(270deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes dland{0%{transform:scale(1.7)}60%{transform:scale(.92)}100%{transform:scale(1)}}
 .claim:disabled{animation:none;opacity:1;background:radial-gradient(circle at 35% 28%,#b8f5d9,#48d6a0 60%,#1f9c72);color:#06281d}
 @keyframes pulse{0%,100%{box-shadow:0 14px 40px #ffb30055,0 0 0 0 #ffd16688}50%{box-shadow:0 14px 40px #ffb30055,0 0 0 18px #ffd16600}}
 .count{font-size:44px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
@@ -61,7 +70,7 @@ label{display:block;font-size:12px;font-weight:800;color:#a9bbd4;letter-spacing:
 .row{display:flex;justify-content:space-between;gap:10px;width:100%;max-width:320px;background:#0f1a2a;border-radius:10px;padding:8px 12px;font-weight:700}
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#f0f5ff;color:#142033;padding:10px 16px;border-radius:12px;font-weight:800;max-width:90vw;text-align:center;z-index:9}
 .link{background:none;color:var(--muted);text-decoration:underline;font-weight:600;padding:8px;margin:0 auto}
-@media (prefers-reduced-motion:reduce){.claim{animation:none}}
+@media (prefers-reduced-motion:reduce){.claim,.dicebtn,.face.roll{animation:none}}
 </style>
 </head>
 <body>
@@ -117,7 +126,8 @@ async function krLoadPeer(){if(window.Peer)return;let err;for(const src of KR_PE
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const S={code:"",cid:"",peer:null,conn:null,open:false,ping:null,retry:null,state:null,phase:"idle",qid:0,deadline:0,total:5000,claimed:false,locked:false,by:"",result:null,done:null,myMs:null,idleT:null,connecting:false};
+const S={code:"",cid:"",peer:null,conn:null,open:false,ping:null,retry:null,state:null,phase:"idle",qid:0,deadline:0,total:5000,claimed:false,locked:false,by:"",result:null,done:null,myMs:null,idleT:null,connecting:false,sentSeq:null,roll:null};
+const FACES=["⚀","⚁","⚂","⚃","⚄","⚅"];
 try{S.cid=localStorage.getItem("kr_cid")||"";if(!S.cid){S.cid=Math.random().toString(36).slice(2,12);localStorage.setItem("kr_cid",S.cid)}}catch(e){S.cid=S.cid||Math.random().toString(36).slice(2,12)}
 function toast(m){const t=$("toast");t.textContent=m;t.classList.remove("hidden");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.add("hidden"),2600)}
 function setConn(k,txt){const c=$("conn");c.className="conn "+k;$("connTxt").textContent=txt||({ok:"Đã kết nối",connecting:"Đang kết nối…",lost:"Mất kết nối",off:"Chưa kết nối"}[k])}
@@ -161,7 +171,14 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.code&&!
 function onMsg(m){
  if(!m||typeof m!=="object")return;
  switch(m.t){
-  case"state":S.state=m;if(m.you===null){show("sPick");renderPick()}else{show("sMain")}render();break;
+  case"state":{const was=!!(S.state&&S.state.canRoll);S.state=m;
+   if(m.canRoll){clearTimeout(S.idleT);if(S.sentSeq!==m.seq)S.phase="idle";if(!was){S.sentSeq=null;try{navigator.vibrate&&navigator.vibrate([120,60,120])}catch(e){}}}
+   if(!m.canRoll)S.sentSeq=null;
+   if(m.you===null){show("sPick");renderPick()}else{show("sMain")}render();break}
+  case"droll":if(S.state&&S.state.dice){clearTimeout(S.idleT);S.sentSeq=null;S.state.canRoll=false;S.phase="rolling";S.face=0;render()}break;
+  case"dtick":if(S.phase==="rolling"){S.face=m.v;const f=$("diceFace");if(f)f.textContent=FACES[(m.v||1)-1]}break;
+  case"rolled":if(S.state&&S.state.dice){clearTimeout(S.idleT);S.sentSeq=null;S.phase="rolled";S.roll=m;render();idleLater(5000)}break;
+  case"roll_rej":S.sentSeq=null;toast(m.reason||"Chưa tung được.");render();break;
   case"pickfail":toast(m.reason||"Không chọn được đội này.");break;
   case"kicked":toast("Quản trò đã gỡ máy này khỏi đội.");break;
   case"steal_open":clearTimeout(S.idleT);Object.assign(S,{phase:"steal",qid:m.qid,by:m.by,total:m.total,deadline:performance.now()+m.left,claimed:false,locked:false,result:null,myMs:null});try{navigator.vibrate&&navigator.vibrate([80,40,80])}catch(e){}render();break;
@@ -197,6 +214,12 @@ function render(){
  $("stC").textContent=s.correct;$("stW").textContent=s.wrong;$("stP").textContent=s.finished?"🏁":s.pos;
  const p=$("panel");
  const ph=S.phase;
+ if(st.dice&&st.canRoll){
+  const sent=S.sentSeq===st.seq;
+  p.innerHTML=`<p><b>Đến lượt đội bạn!</b></p><button class="claim dicebtn" id="diceBtn"${sent?" disabled":""}><span class="ic">🎲</span>${sent?"ĐANG TUNG…":"TUNG"}<small>${sent?"Nhìn lên màn hình":"XÚC XẮC"}</small></button>`;
+  const b=$("diceBtn");if(!sent)b.addEventListener("pointerdown",e=>{e.preventDefault();rollTap()});
+  return
+ }
  if(ph==="steal"){
   if(S.claimed){p.innerHTML=`<div class="big">✅</div><h2 class="win">Đã gửi!</h2><p>Chờ kết quả từ quản trò…</p>`}
   else{p.innerHTML=`<p>${S.locked?`<b>Một đội đã bấm trước</b> — bạn vẫn kịp bấm!`:`<b>${esc(S.by)}</b> vừa trả lời sai.`}</p><button class="claim" id="claimBtn">GIÀNH QUYỀN<small>TRẢ LỜI</small></button><div class="count" id="cnt"></div><div class="bar"><div id="cbar"></div></div>`;
@@ -207,13 +230,26 @@ function render(){
   else if(r.owner)p.innerHTML=`<div class="big">⏳</div><h2>${esc(r.winner)} giành quyền</h2><p>Đội bạn đã trả lời sai. Chờ kết quả.</p>`;
   else if(r.ms!==null)p.innerHTML=`<div class="big">⏱️</div><h2 class="lose">${esc(r.winner)} nhanh hơn</h2><p>Bạn: <b>${(r.ms/1000).toFixed(2)}s</b> · nhanh nhất: <b>${(r.best/1000).toFixed(2)}s</b></p>`;
   else p.innerHTML=`<div class="big">⏱️</div><h2>${esc(r.winner)} giành quyền</h2><p>Bạn chưa bấm kịp lần này.</p>`;
+ }else if(ph==="rolling"&&st.dice){
+  p.innerHTML=`<div class="face roll" id="diceFace">${FACES[(S.face||1)-1]}</div><h2>Đang tung xúc xắc…</h2><p>Nhìn lên màn hình.</p>`;
+ }else if(ph==="rolled"&&S.roll&&st.dice){
+  const r=S.roll,mine=r.team===st.you;
+  p.innerHTML=`<div class="face land" id="diceFace">${FACES[(r.v||1)-1]||"🎲"}</div><h2>${mine?"Bạn tung được "+r.v:esc(r.name)+" tung được "+r.v}</h2><p>${mine?"Nhìn lên màn hình và chờ quản trò đọc câu hỏi.":"Chờ đội đó trả lời câu hỏi."}</p>`;
  }else if(ph==="done"&&S.done){
   const d=S.done;
   p.innerHTML=`<div class="big">${d.ok?"✅":"❌"}</div><h2 class="${d.ok?"win":"lose"}">${esc(d.team)} trả lời ${d.ok?"đúng":"chưa đúng"}</h2><p>${d.ok?"Đội giành quyền được +1 câu đúng.":"Đáp án đang hiện trên màn hình."}</p>`;
  }else if(ph==="none"){p.innerHTML=`<div class="big">⌛</div><h2>Không đội nào giành quyền</h2><p>Đáp án đang hiện trên màn hình.</p>`}
  else if(ph==="owner"){p.innerHTML=`<div class="big">🛡️</div><h2>Đội bạn trả lời chưa đúng</h2><p>Các đội khác đang tranh quyền trả lời.</p>`}
  else if(ph==="watch"){p.innerHTML=`<div class="big">👀</div><h2>${esc(S.by)} trả lời sai</h2><p>Máy này chưa thuộc đội nào.</p>`}
+ else if(st.dice&&st.started&&!st.over){
+  const tn=st.turn,mineTurn=tn&&tn.id===st.you;
+  p.innerHTML=`<div class="big">${st.paused?"⏸️":mineTurn?"🎲":"👀"}</div><h2>${st.paused?"Quản trò đang tạm dừng":mineTurn?"Đội bạn đang trong lượt":"Lượt của "+esc(tn?tn.name:"…")}</h2><p>${mineTurn?"Nút xúc xắc sẽ hiện ra khi đến lượt tung. Câu hỏi trả lời qua quản trò.":"Đến lượt đội bạn, nút xúc xắc sẽ hiện ngay tại đây."+(st.enabled===false?"":" Khi đội khác trả lời sai, bạn có "+(st.sec||5)+" giây để giành quyền.")}</p>`}
  else{p.innerHTML=`<div class="big">${st.enabled===false?"💤":"👀"}</div><h2>${st.enabled===false?"Tranh quyền đang tắt":"Sẵn sàng tranh quyền"}</h2><p>${st.enabled===false?"Quản trò chưa bật tính năng này.":"Khi một đội khác trả lời sai, nút giành quyền sẽ hiện ra ở đây. Bạn có "+(st.sec||5)+" giây để bấm."}</p>`}
+}
+function rollTap(){
+ const st=S.state;if(!st||!st.canRoll||S.sentSeq===st.seq)return;
+ S.sentSeq=st.seq;send({t:"roll",seq:st.seq});try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
+ render();
 }
 function claim(){
  if(S.phase!=="steal"||S.claimed)return;
